@@ -5,12 +5,15 @@ import { Button } from './ui/Button';
 import { db } from '../firebase';
 import { collection, addDoc, Timestamp, setDoc, doc } from 'firebase/firestore';
 import { Transaction } from '../types';
+import { getUserTransactionsCollection, getUserBudgetDoc } from '../firebase';
+import { User } from 'firebase/auth';
 
 interface NewTransactionProps {
   totalSpentToday: number;
   setTotalSpentToday: (amount: number) => void;
   transactions: Transaction[];
   setTransactions: (transactions: Transaction[]) => void;
+  user: User | null;
 }
 
 const NewTransaction: React.FC<NewTransactionProps> = ({
@@ -18,10 +21,13 @@ const NewTransaction: React.FC<NewTransactionProps> = ({
   setTotalSpentToday,
   transactions,
   setTransactions,
+  user,
 }) => {
   const [transaction, setTransaction] = useState<string>('');
 
   const handleTransaction = async () => {
+    if (!user) return;
+
     const amount = parseFloat(transaction);
     if (isNaN(amount)) return;
 
@@ -33,11 +39,13 @@ const NewTransaction: React.FC<NewTransactionProps> = ({
       date: Timestamp.now()
     };
     
-    const docRef = await addDoc(collection(db, 'transactions'), newTransaction);
+    const transactionsCollection = getUserTransactionsCollection(user);
+    const docRef = await addDoc(transactionsCollection, newTransaction);
     
     setTransactions([{id: docRef.id, ...newTransaction}, ...transactions]);
     
-    await setDoc(doc(db, 'budget', 'current'), {
+    const budgetDocRef = getUserBudgetDoc(user);
+    await setDoc(budgetDocRef, {
       totalSpentToday: newTotalSpent,
       date: Timestamp.now()
     }, { merge: true });

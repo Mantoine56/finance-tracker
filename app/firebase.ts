@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore, doc, collection } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, User } from 'firebase/auth';
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -20,3 +20,8 @@ export const googleProvider = new GoogleAuthProvider();
 
 // Initialize Analytics and export it if you need to use it elsewhere
 export const analytics = getAnalytics(app);
+
+// Add these helper functions
+export const getUserDoc = (user: User) => doc(db, 'users', user.uid);
+export const getUserTransactionsCollection = (user: User) => collection(db, 'users', user.uid, 'transactions');
+export const getUserBudgetDoc = (user: User) => doc(db, 'users', user.uid, 'budget', 'current');

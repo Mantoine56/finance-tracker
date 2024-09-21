@@ -4,6 +4,9 @@ import { Input } from './ui/Input';
 import { formatCurrency } from '../utils/formatCurrency';
 import NewTransaction from './NewTransaction';
 import { Transaction } from '../types';
+import { getUserBudgetDoc } from '../firebase';
+import { User } from 'firebase/auth';
+import { setDoc } from 'firebase/firestore'; // Add this import
 
 interface OverviewProps {
   monthlyBudget: number;
@@ -15,6 +18,7 @@ interface OverviewProps {
   amountLeftForMonth: number;
   transactions: Transaction[];
   setTransactions: (transactions: Transaction[]) => void;
+  user: User | null;
 }
 
 const Overview: React.FC<OverviewProps> = ({
@@ -27,7 +31,16 @@ const Overview: React.FC<OverviewProps> = ({
   amountLeftForMonth,
   transactions,
   setTransactions,
+  user,
 }) => {
+  const handleMonthlyBudgetChange = async (newBudget: number) => {
+    setMonthlyBudget(newBudget);
+    if (user) {
+      const budgetDocRef = getUserBudgetDoc(user);
+      await setDoc(budgetDocRef, { monthlyBudget: newBudget }, { merge: true });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -40,7 +53,7 @@ const Overview: React.FC<OverviewProps> = ({
               type="number"
               placeholder="Enter budget"
               value={monthlyBudget || ''}
-              onChange={(e) => setMonthlyBudget(parseFloat(e.target.value) || 0)}
+              onChange={(e) => handleMonthlyBudgetChange(parseFloat(e.target.value) || 0)}
               className="w-full pl-10 text-lg font-bold bg-white border-gray-300 text-gray-800 placeholder-gray-400 text-center"
             />
           </div>
@@ -56,6 +69,7 @@ const Overview: React.FC<OverviewProps> = ({
         setTotalSpentToday={setTotalSpentToday}
         transactions={transactions}
         setTransactions={setTransactions}
+        user={user}
       />
       
       <div className={`p-4 rounded-lg shadow-md ${amountLeftToday < 0 ? 'bg-red-50' : 'bg-green-50'}`}>
