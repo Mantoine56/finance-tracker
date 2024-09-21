@@ -2,16 +2,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { LogOut } from 'lucide-react';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
+import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit, Timestamp, setDoc, doc } from 'firebase/firestore';
 import { Card, CardHeader, CardContent, CardTitle } from './ui/Card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs';
 import { Button } from './ui/Button';
 import Overview from './Overview';
 import TransactionHistory from './TransactionHistory';
+import Auth from './Auth';
 import { Transaction } from '../types';
 
 const FinanceTracker: React.FC = () => {
+  const [user, setUser] = useState(auth.currentUser);
   const [monthlyBudget, setMonthlyBudget] = useState<number>(0);
   const [dailyAllowance, setDailyAllowance] = useState<number>(0);
   const [totalSpentToday, setTotalSpentToday] = useState<number>(0);
@@ -22,8 +25,15 @@ const FinanceTracker: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('overview');
 
   useEffect(() => {
-    fetchTransactions();
-    fetchBudget();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+      if (user) {
+        fetchTransactions();
+        fetchBudget();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -79,10 +89,17 @@ const FinanceTracker: React.FC = () => {
     updateBudget();
   };
 
-  const handleLogout = () => {
-    // Implement logout functionality here
-    console.log('Logout clicked');
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
+
+  if (!user) {
+    return <Auth onLogin={() => setUser(auth.currentUser)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6 md:p-8">
@@ -90,7 +107,6 @@ const FinanceTracker: React.FC = () => {
         <Button
           onClick={handleLogout}
           className="absolute top-4 right-4 p-2"
-          variant="ghost"
         >
           <LogOut className="h-5 w-5" />
         </Button>
