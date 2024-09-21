@@ -81,7 +81,7 @@ const Overview: React.FC<OverviewProps> = ({
       
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-white p-4 rounded-lg shadow-md">
-          <h3 className="text-lg font-semibold mb-2 text-center">Today's Spending</h3>
+          <h3 className="text-lg font-semibold mb-2 text-center">Today&apos;s Spending</h3>
           <p className="text-2xl font-bold text-gray-800 text-center">{formatCurrency(totalSpentToday)}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow-md">

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LogOut } from 'lucide-react';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { signOut, User } from 'firebase/auth';
-import { collection, getDocs, query, orderBy, Timestamp, setDoc, doc, getDoc } from 'firebase/firestore';
+import { getDocs, query, orderBy, Timestamp, setDoc, getDoc } from 'firebase/firestore';
 import { Card, CardHeader, CardContent, CardTitle } from './ui/Card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs';
 import { Button } from './ui/Button';
@@ -12,7 +12,7 @@ import Overview from './Overview';
 import TransactionHistory from './TransactionHistory';
 import Auth from './Auth';
 import { Transaction } from '../types';
-import { getUserDoc, getUserTransactionsCollection, getUserBudgetDoc } from '../firebase';
+import { getUserTransactionsCollection, getUserBudgetDoc } from '../firebase';
 
 const FinanceTracker: React.FC = () => {
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -24,6 +24,34 @@ const FinanceTracker: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [activeTab, setActiveTab] = useState<string>('overview');
+
+  const fetchBudget = useCallback(async (user: User) => {
+    const budgetDocRef = getUserBudgetDoc(user);
+    const budgetDoc = await getDoc(budgetDocRef);
+    if (budgetDoc.exists()) {
+      const budgetData = budgetDoc.data() as { monthlyBudget: number; totalSpentToday: number };
+      setMonthlyBudget(budgetData.monthlyBudget);
+      setTotalSpentToday(budgetData.totalSpentToday);
+    } else {
+      // Initialize budget document if it doesn't exist
+      await setDoc(budgetDocRef, { monthlyBudget: 0, totalSpentToday: 0, date: Timestamp.now() });
+    }
+  }, []);
+
+  const fetchTransactions = useCallback(async (user: User) => {
+    const q = query(getUserTransactionsCollection(user), orderBy('date', 'desc'));
+    const querySnapshot = await getDocs(q);
+    const fetchedTransactions: Transaction[] = [];
+    querySnapshot.forEach((doc) => {
+      fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
+    });
+    setTransactions(fetchedTransactions);
+  }, []);
+
+  const fetchUserData = useCallback(async (user: User) => {
+    await fetchBudget(user);
+    await fetchTransactions(user);
+  }, [fetchBudget, fetchTransactions]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -42,35 +70,29 @@ const FinanceTracker: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [fetchUserData]);
 
-  const fetchUserData = async (user: User) => {
-    await fetchBudget(user);
-    await fetchTransactions(user);
-  };
+  const updateBudget = useCallback(() => {
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const calculatedDailyAllowance = monthlyBudget / daysInMonth;
+    setDailyAllowance(calculatedDailyAllowance);
+    setAmountLeftToday(calculatedDailyAllowance - totalSpentToday);
+    const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
+    setAmountLeftForMonth(monthlyBudget - totalSpent);
+  }, [monthlyBudget, currentDate, totalSpentToday, transactions]);
 
-  const fetchTransactions = async (user: User) => {
-    const q = query(getUserTransactionsCollection(user), orderBy('date', 'desc'));
-    const querySnapshot = await getDocs(q);
-    const fetchedTransactions: Transaction[] = [];
-    querySnapshot.forEach((doc) => {
-      fetchedTransactions.push({ id: doc.id, ...doc.data() } as Transaction);
-    });
-    setTransactions(fetchedTransactions);
-  };
-
-  const fetchBudget = async (user: User) => {
-    const budgetDocRef = getUserBudgetDoc(user);
-    const budgetDoc = await getDoc(budgetDocRef);
-    if (budgetDoc.exists()) {
-      const budgetData = budgetDoc.data() as { monthlyBudget: number; totalSpentToday: number };
-      setMonthlyBudget(budgetData.monthlyBudget);
-      setTotalSpentToday(budgetData.totalSpentToday);
-    } else {
-      // Initialize budget document if it doesn't exist
-      await setDoc(budgetDocRef, { monthlyBudget: 0, totalSpentToday: 0, date: Timestamp.now() });
+  const resetDaily = useCallback(async () => {
+    if (user) {
+      setTotalSpentToday(0);
+      const budgetDocRef = getUserBudgetDoc(user);
+      await setDoc(budgetDocRef, {
+        monthlyBudget,
+        totalSpentToday: 0,
+        date: Timestamp.now()
+      }, { merge: true });
+      updateBudget();
     }
-  };
+  }, [user, monthlyBudget, updateBudget]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -82,33 +104,11 @@ const FinanceTracker: React.FC = () => {
     }, 60000); // Check every minute
 
     return () => clearInterval(timer);
-  }, [currentDate]);
+  }, [currentDate, resetDaily]);
 
   useEffect(() => {
     updateBudget();
-  }, [monthlyBudget, currentDate, totalSpentToday, transactions]);
-
-  const updateBudget = () => {
-    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    const calculatedDailyAllowance = monthlyBudget / daysInMonth;
-    setDailyAllowance(calculatedDailyAllowance);
-    setAmountLeftToday(calculatedDailyAllowance - totalSpentToday);
-    const totalSpent = transactions.reduce((sum, t) => sum + t.amount, 0);
-    setAmountLeftForMonth(monthlyBudget - totalSpent);
-  };
-
-  const resetDaily = async () => {
-    if (user) {
-      setTotalSpentToday(0);
-      const budgetDocRef = getUserBudgetDoc(user);
-      await setDoc(budgetDocRef, {
-        monthlyBudget,
-        totalSpentToday: 0,
-        date: Timestamp.now()
-      }, { merge: true });
-      updateBudget();
-    }
-  };
+  }, [updateBudget]);
 
   const handleLogout = async () => {
     try {

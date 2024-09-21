@@ -1,8 +1,14 @@
 import React from 'react';
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
-
-export const Input: React.FC<InputProps> = ({ id, type, placeholder, value, onChange, className, ...props }) => (
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ 
+  id, 
+  type, 
+  placeholder, 
+  value, 
+  onChange, 
+  className, 
+  ...props 
+}) => (
   <input
     id={id}
     type={type}
